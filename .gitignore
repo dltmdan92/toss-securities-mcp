@@ -1,0 +1,17 @@
+.venv/
+venv/
+.local/
+__pycache__/
+*.py[cod]
+
+# Credentials, tokens, and local configuration
+.env
+.env.*
+*.dpapi
+credentials*.json
+token*.json
+
+# Local runtime output
+*.log
+*.tmp
+.pytest_cache/
