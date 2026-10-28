@@ -7,12 +7,13 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp import types
 from core import SafeError, TossService
+from vault import SETUP_COMMAND
 
 service = TossService()
 server = Server(
     "toss-securities", version="1.0.0",
     instructions=("토스증권 공식 REST API 연동입니다. connection_status로 설정 상태를 확인하세요. "
-                  "키를 채팅이나 도구 인자로 받지 말고 로컬 configure.ps1에서 입력하게 하세요. "
+                  f"키를 채팅이나 도구 인자로 받지 말고 로컬 {SETUP_COMMAND}에서 입력하게 하세요. "
                   "시세와 자산은 공식 응답 그대로 해석하고 원화/달러 및 조회 시각을 구분하세요. "
                   "실제 거래는 사용자가 종목·수량/금액·주문방식 등 구체적 내용을 명시한 경우만 호출하세요. "
                   "기본 거래는 꺼져 있으며 로컬 설정에서 켤 수 있습니다. 쓰기 작업은 자동 재시도하지 마세요. "

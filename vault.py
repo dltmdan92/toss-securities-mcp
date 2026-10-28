@@ -1,13 +1,19 @@
-"""Current-user Windows DPAPI storage; secrets never appear in config.toml."""
+"""Windows DPAPI/macOS Keychain storage; secrets never appear in config.toml."""
 import asyncio
 import base64
 import ctypes
 from ctypes import wintypes
 import json
+import hashlib
+import errno
+import sys
 import os
 from pathlib import Path
 import time
 from contextlib import asynccontextmanager
+
+
+SETUP_COMMAND = "configure.ps1" if os.name == "nt" else "configure_web.py"
 
 
 class Blob(ctypes.Structure):
@@ -41,7 +47,26 @@ class Vault:
     def __init__(self, root: Path):
         self.root = Path(root)
 
+    def _keychain(self):
+        # Explicit backend: never fall back to another (possibly plaintext) store.
+        from keyring.backends.macOS import Keyring
+        backend = Keyring()
+        service = "toss-securities-mcp:" + hashlib.sha256(str(self.root.resolve()).encode()).hexdigest()
+        return backend, service
+
     def read(self, name):
+        if sys.platform == "darwin":
+            try:
+                backend, service = self._keychain()
+                value = backend.get_password(service, name)
+                if value is None:
+                    return None
+                data = json.loads(value)
+                if not isinstance(data, dict):
+                    raise ValueError("Expected an object")
+                return data
+            except Exception:
+                raise RuntimeError("macOS 키체인의 인증정보를 열 수 없습니다. configure_web.py에서 다시 저장하세요.") from None
         path = self.root / f"{name}.dpapi"
         if not path.exists():
             return None
@@ -51,6 +76,15 @@ class Vault:
             raise RuntimeError("저장된 인증정보를 열 수 없습니다. configure.ps1에서 다시 저장하세요.") from None
 
     def write(self, name, data):
+        if sys.platform == "darwin":
+            try:
+                backend, service = self._keychain()
+                if not isinstance(data, dict):
+                    raise ValueError("Expected an object")
+                backend.set_password(service, name, json.dumps(data))
+                return
+            except Exception:
+                raise RuntimeError("macOS 키체인에 인증정보를 저장할 수 없습니다. 키체인 접근을 확인하세요.") from None
         self.root.mkdir(parents=True, exist_ok=True)
         encoded = base64.b64encode(crypt(json.dumps(data).encode("utf-8"))).decode("ascii")
         path = self.root / f"{name}.dpapi"
@@ -62,10 +96,15 @@ class Vault:
     async def lock(self, name):
         # A shared lock/cache prevents concurrent Codex processes from issuing
         # mutually revoking tokens (Toss permits one token per client).
-        import msvcrt
-        self.root.mkdir(parents=True, exist_ok=True)
+        if sys.platform == "darwin":
+            import fcntl
+        elif os.name == "nt":
+            import msvcrt
+        else:
+            raise RuntimeError("Windows 또는 macOS가 필요합니다.")
+        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         path = self.root / f"{name}.lock"
-        handle = path.open("a+b")
+        handle = os.fdopen(os.open(path, os.O_RDWR | os.O_CREAT | os.O_APPEND, 0o600), "a+b")
         handle.write(b"0")
         handle.flush()
         deadline = time.monotonic() + 30
@@ -74,15 +113,25 @@ class Vault:
             while not acquired:
                 try:
                     handle.seek(0)
-                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                    if sys.platform == "darwin":
+                        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    else:
+                        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
                     acquired = True
-                except OSError:
+                except OSError as error:
+                    if sys.platform == "darwin" and error.errno not in {errno.EACCES, errno.EAGAIN}:
+                        raise RuntimeError("인증 잠금을 처리할 수 없습니다.") from None
                     if time.monotonic() >= deadline:
                         raise RuntimeError("인증 처리가 사용 중입니다. 잠시 후 다시 시도하세요.") from None
                     await asyncio.sleep(0.1)
             yield
         finally:
-            if acquired:
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-            handle.close()
+            try:
+                if acquired:
+                    handle.seek(0)
+                    if sys.platform == "darwin":
+                        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                    else:
+                        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            finally:
+                handle.close()

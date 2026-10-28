@@ -4,7 +4,7 @@
 
 ## 설치
 
-Windows 10/11, Python 3.11 이상, 토스증권 WTS에서 발급한 Open API Client ID와 Client Secret이 필요합니다. 인증정보 암호화와 토큰 잠금이 Windows 기능을 사용하므로 현재 구현은 Windows 전용입니다. Codex에 등록하려면 `codex` CLI도 설치되어 있어야 합니다.
+Windows 10/11 또는 macOS, Python 3.11 이상, 토스증권 WTS에서 발급한 Open API Client ID와 Client Secret이 필요합니다. Windows는 DPAPI, macOS는 명시적인 macOS Keychain 백엔드와 파일 잠금을 사용합니다. Codex에 등록하려면 `codex` CLI도 설치되어 있어야 합니다.
 
 이 저장소를 복제하거나 소스를 내려받은 후, 저장소 폴더에서 PowerShell을 열고 실행합니다.
 
@@ -13,7 +13,7 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
 ```
 
-`requirements.txt`는 직접 의존성 목록이고 `requirements-lock.txt`는 Windows에서 사용한 고정 버전 목록입니다. 가상환경과 인증정보는 저장소에 포함하지 않습니다.
+`requirements.txt`는 직접 의존성 목록이고 `requirements-lock.txt`는 플랫폼별 의존성을 구분한 고정 버전 목록입니다. 가상환경과 인증정보는 저장소에 포함하지 않습니다.
 
 키를 아래 연결 절차로 저장한 후, 같은 폴더에서 Codex에 등록합니다. 실행 파일과 서버 경로는 현재 저장소의 절대 경로로 변환됩니다.
 
@@ -24,6 +24,17 @@ codex mcp add toss_securities -- $tossPythonPath -u $tossServerPath
 ```
 
 다른 MCP 클라이언트에서는 명령에 `.venv\Scripts\python.exe`의 절대 경로를, 인수에 `-u`와 `server.py`의 절대 경로를 지정합니다. 작업 폴더와 관계없이 서버 폴더의 `openapi.json`과 `.local/`을 사용합니다.
+
+### macOS 설치
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-lock.txt
+codex mcp add toss-securities -- "$PWD/.venv/bin/python" -u "$PWD/server.py"
+.venv/bin/python configure_web.py
+```
+
+출력된 로컬 URL에서 키를 입력하세요. macOS 키체인 접근 허용 창이 나오면 승인합니다. 인증정보와 토큰은 저장소 절대 경로에 따라 분리된 키체인 항목에 저장하며 평문 파일로 저장하지 않습니다. 키체인을 사용할 수 없으면 오류로 종료하며 다른 저장소로 대체하지 않습니다. 거래는 기본적으로 꺼져 있습니다. Mac의 `.local/`에는 잠금 파일만 생성됩니다.
 
 ## 연결
 
@@ -50,7 +61,7 @@ WebSocket 스트리밍은 이 버전에 포함하지 않았습니다. 현재가�
 
 ## 보관과 인증
 
-인증정보와 토큰은 `.local/`에 Windows 현재 사용자 DPAPI로 암호화하여 저장합니다. `config.toml`과 소스 코드에는 키를 저장하지 않습니다. 토스는 client_id마다 유효한 토큰 하나만 허용하므로 여러 서버 프로세스가 파일 잠금과 암호화된 토큰 캐시를 공유합니다. 다른 프로그램이 같은 키로 새 토큰을 발급하면 `token-revoked` 오류가 날 수 있습니다. 해당 오류는 자동 토큰 재발급 없이 알려줍니다. 다른 연동과 키를 분리하거나, 다른 연동을 중지한 후 `.local/token.dpapi`만 지우고 다시 호출하세요.
+Windows에서는 인증정보와 토큰을 `.local/`에 현재 사용자 DPAPI로 암호화하여 저장합니다. macOS에서는 네이티브 키체인에 저장합니다. `config.toml`과 소스 코드에는 키를 저장하지 않습니다. 토스는 client_id마다 유효한 토큰 하나만 허용하므로 여러 서버 프로세스가 파일 잠금과 암호화된 토큰 캐시를 공유합니다. 다른 프로그램이 같은 키로 새 토큰을 발급하면 `token-revoked` 오류가 날 수 있습니다. 해당 오류는 자동 토큰 재발급 없이 알려줍니다. 다른 연동과 키를 분리하거나, 다른 연동을 중지한 후 Windows에서는 `.local/token.dpapi`만 지우고 다시 호출하세요. macOS에서는 키체인 접근 앱에서 `toss-securities-mcp:`로 시작하는 해당 설치의 `token` 항목만 제거하세요.
 
 환경변수 `TOSS_CLIENT_ID`, `TOSS_CLIENT_SECRET`, `TOSS_ACCOUNT_SEQ`, `TOSS_ENABLE_TRADING=true`로 로컬 설정을 덮어쓸 수도 있습니다. 기본 설치는 환경변수를 사용하지 않습니다. 네트워크는 공식 HTTPS 주소로만 전송하며 리다이렉트와 환경 프록시 자동 적용을 끕니다.
 

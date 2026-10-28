@@ -9,6 +9,7 @@ import threading
 from urllib.parse import parse_qs
 
 from vault import Vault
+import sys
 
 ROOT = Path(__file__).resolve().parent
 NONCE = secrets.token_urlsafe(32)
@@ -55,7 +56,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_page("<h1>페이지를 찾을 수 없습니다.</h1>", 404)
             return
         self.send_page("<span class='tag'>LOCAL SETUP</span><h1>토스증권 MCP 연결</h1>"
-            "<p>발급받은 API 키를 입력하세요. 이 PC의 Windows 사용자 계정으로 암호화해 저장합니다.</p>"
+            f"<p>발급받은 API 키를 입력하세요. {'macOS 키체인' if sys.platform == 'darwin' else 'Windows 사용자 DPAPI'}에 안전하게 저장합니다.</p>"
             "<form method='post' autocomplete='off'>"
             f"<input type='hidden' name='csrf' value='{NONCE}'>"
             "<label>Client ID<input name='client_id' required spellcheck='false' autocomplete='off'></label>"

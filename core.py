@@ -13,7 +13,7 @@ from urllib.parse import quote
 
 import httpx
 from jsonschema import Draft202012Validator
-from vault import Vault
+from vault import Vault, SETUP_COMMAND
 
 BASE_URL = "https://openapi.tossinvest.com"
 ROOT = Path(__file__).resolve().parent
@@ -149,7 +149,7 @@ class TossService:
                 "default_account_configured": bool(settings.get("account_seq")),
                 "trading_enabled": settings.get("enable_trading") is True,
                 "rest_tools": len(self.operations), "network_checked": False,
-                "setup": "configure.ps1에서 키를 저장하고 WTS 설정 > Open API에서 현재 공인 IP를 허용하세요."}
+                "setup": f"{SETUP_COMMAND}에서 키를 저장하고 WTS 설정 > Open API에서 현재 공인 IP를 허용하세요."}
 
     def failure(self, response, write=False):
         try:
@@ -176,7 +176,7 @@ class TossService:
 
     async def token(self, settings, force=False):
         if not settings.get("client_id") or not settings.get("client_secret"):
-            raise SafeError("API 키가 없습니다. configure.ps1에서 client_id와 client_secret을 입력하세요.")
+            raise SafeError(f"API 키가 없습니다. {SETUP_COMMAND}에서 client_id와 client_secret을 입력하세요.")
         fingerprint = hashlib.sha256((settings["client_id"] + "\0" + settings["client_secret"]).encode()).hexdigest()
         try:
             async with self.store.lock("token"):

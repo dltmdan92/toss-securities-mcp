@@ -20,7 +20,7 @@ pydantic_core==2.50.1
 PyJWT==2.15.1
 python-dotenv==1.2.4
 python-multipart==0.0.32
-pywin32==312
+pywin32==312; sys_platform == "win32"
 referencing==0.37.0
 rpds-py==2026.9.1
 sse-starlette==3.5.0
@@ -28,3 +28,13 @@ starlette==1.9.0
 typing-inspection==0.4.4
 typing_extensions==4.16.0
 uvicorn==0.54.0
+
+# macOS Keychain backend and its dependencies
+keyring==25.7.0; sys_platform == "darwin"
+backports.tarfile==1.2.0; sys_platform == "darwin"
+importlib_metadata==10.1.0; sys_platform == "darwin"
+jaraco.classes==3.4.0; sys_platform == "darwin"
+jaraco.context==6.1.2; sys_platform == "darwin"
+jaraco.functools==4.6.0; sys_platform == "darwin"
+more-itertools==11.2.1; sys_platform == "darwin"
+zipp==4.1.2; sys_platform == "darwin"
